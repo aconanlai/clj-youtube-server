@@ -10,16 +10,26 @@
               "postgresql://localhost:5432/youtuber"))
 
 
-; TODO: only create table if doesn't already exist
+;; todo: schema validation on routes (e.g. no spaces in id, etc)
 
-; (sql/db-do-commands spec
-;                            (sql/create-table-ddl :comments [[:comment "varchar(120)"] [:time :int]]))
+(defn db-exists?
+  [name]
+  (-> (sql/query spec
+                 [(str "select count(*) from information_schema.tables "
+                       "where table_name='" name "'")])
+      first :count pos?))
 
-(defn create [comment time]
-  (sql/insert! spec :comments [:comment :time] [comment (read-string time)]))
+(defn create-table
+  [name]
+  (when (not (db-exists? name))
+   (sql/db-do-commands spec
+    (sql/create-table-ddl name [[:comment "varchar(120)"] [:time :int]]))))
 
-(defn all []
-  (into [] (sql/query spec ["select * from comments"])))
+(defn create-comment [id comment time]
+  (sql/insert! spec id [:comment :time] [comment (read-string time)]))
+
+(defn get-comments [id]
+  (into [] (sql/query spec [(str "select * from " id)])))
 
 ;; defroutes macro defines a function that chains individual route
 ;; functions together. The request map is passed to each function in
@@ -33,12 +43,14 @@
   (GET "/video/:id" [id]
     {:status 200
      :body {:id id
-            :comments (all)}})
+            :comments (get-comments id)}})
 
   (POST "/video" 
     request
     (let [id (get-in request [:params :id]) comment (get-in request [:params :comment]) time (get-in request [:params :time])]
-      (do (create comment time)
+      (do
+        (create-table id)
+        (create-comment id comment time)
        {:status 200
         :body {:id id
                :comment comment}}))))
