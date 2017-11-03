@@ -9,39 +9,17 @@
 (def spec (or (System/getenv "DATABASE_URL")
               "postgresql://localhost:5432/youtuber"))
 
-
-;; todo: schema validation on routes (e.g. no spaces in id, etc)
-
 (defn db-exists?
   [name]
   (-> (sql/query spec
-                 [(str "select count(*) from information_schema.tables where table_name='" name "'")])
+                 ["select count(*) from information_schema.tables where table_name =?" name])
       first :count pos?))
-
-; (println (db-exists? "z6qyuspdzyu"))
-
-; (defn db-exists?
-;   [name]
-;   (try
-;     (do
-;       (->> (format "select 1 from %s" (sqlize table-key))
-;            (vector)
-;            (jdbc/query db-spec))
-;       true)
-;     (catch Throwable ex
-;       false)))
 
 (defn create-table
   [name]
-  (when (db-exists? name)
-   (sql/db-do-commands spec
-    (sql/create-table-ddl name [[:comment "varchar(120)"] [:time :int]]))))
-
-; (defn create-table
-;   [name]
-;   (when-not (db-exists? name)
-;    (sql/db-do-commands spec
-;     (sql/create-table-ddl name [[:comment "varchar(120)"] [:time :int]]))))
+    (when-not (db-exists? name)
+          (sql/db-do-commands spec
+           (sql/create-table-ddl name [[:comment "varchar(120)"] [:time :int]]))))
 
 (defn create-comment [id comment time]
   (sql/insert! spec id [:comment :time] [comment (read-string time)]))
@@ -61,13 +39,13 @@
   (GET "/video/:id" [id]
     {:status 200
      :body {:id id
-            :comments (get-comments id)}})
+            :comments (get-comments (clojure.string/lower-case id))}})
 
   (POST "/video" 
     request
     (let [id (get-in request [:params :id]) comment (get-in request [:params :comment]) time (get-in request [:params :time])]
       (do
-        (create-table id)
+        (create-table (clojure.string/lower-case id))
         (create-comment id comment time)
        {:status 200
         :body {:id id
