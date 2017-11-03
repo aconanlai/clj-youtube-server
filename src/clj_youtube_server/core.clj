@@ -15,15 +15,33 @@
 (defn db-exists?
   [name]
   (-> (sql/query spec
-                 [(str "select count(*) from information_schema.tables "
-                       "where table_name='" name "'")])
+                 [(str "select count(*) from information_schema.tables where table_name='" name "'")])
       first :count pos?))
+
+; (println (db-exists? "z6qyuspdzyu"))
+
+; (defn db-exists?
+;   [name]
+;   (try
+;     (do
+;       (->> (format "select 1 from %s" (sqlize table-key))
+;            (vector)
+;            (jdbc/query db-spec))
+;       true)
+;     (catch Throwable ex
+;       false)))
 
 (defn create-table
   [name]
-  (when (not (db-exists? name))
+  (when (db-exists? name)
    (sql/db-do-commands spec
     (sql/create-table-ddl name [[:comment "varchar(120)"] [:time :int]]))))
+
+; (defn create-table
+;   [name]
+;   (when-not (db-exists? name)
+;    (sql/db-do-commands spec
+;     (sql/create-table-ddl name [[:comment "varchar(120)"] [:time :int]]))))
 
 (defn create-comment [id comment time]
   (sql/insert! spec id [:comment :time] [comment (read-string time)]))
