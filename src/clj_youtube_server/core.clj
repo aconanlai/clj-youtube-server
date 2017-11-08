@@ -3,13 +3,14 @@
             [compojure.core :refer :all]
             [compojure.handler :as handler]
             [ring.middleware.json :as middleware]
+            [ring.middleware.cors :refer [wrap-cors]]
             [ring.adapter.jetty :as ring]
             [compojure.route :as route]))
 
 (def spec (or (System/getenv "DATABASE_URL")
               "postgresql://localhost:5432/youtuber"))
 
-(defn db-exists?
+(defn table-exists?
   [name]
   (-> (sql/query spec
                  ["select count(*) from information_schema.tables where table_name =?" name])
@@ -17,15 +18,17 @@
 
 (defn create-table
   [name]
-    (when-not (db-exists? name)
-          (sql/db-do-commands spec
-           (sql/create-table-ddl name [[:comment "varchar(120)"] [:time :int]]))))
+  (when-not (table-exists? name)
+        (sql/db-do-commands spec
+         (sql/create-table-ddl name [[:comment "varchar(120)"] [:time :int]]))))
 
 (defn create-comment [id comment time]
   (sql/insert! spec id [:comment :time] [comment (read-string time)]))
 
 (defn get-comments [id]
-  (into [] (sql/query spec [(str "select * from " id)])))
+  (if (table-exists? id)
+   (into [] (sql/query spec [(str "select * from " id)]))
+   []))
 
 ;; defroutes macro defines a function that chains individual route
 ;; functions together. The request map is passed to each function in
@@ -59,7 +62,8 @@
 (def handler
   (-> (handler/site app-routes)
     (middleware/wrap-json-body {:keywords? true})
-    middleware/wrap-json-response))
+    middleware/wrap-json-response
+    (wrap-cors routes #".*")))
   
 (defn -main []
   (ring/run-jetty #'app-routes {:port 8080 :join? false}))
