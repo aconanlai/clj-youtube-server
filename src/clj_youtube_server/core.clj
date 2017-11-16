@@ -27,7 +27,7 @@
 
 (defn get-comments [id]
   (if (table-exists? id)
-   (into [] (sql/query spec [(str "select * from " id)]))
+   (into [] (sql/query spec [(str "select distinct time, comment from " id)]))
    []))
 
 ;; defroutes macro defines a function that chains individual route
