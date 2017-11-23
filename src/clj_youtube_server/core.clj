@@ -46,10 +46,10 @@
 
   (POST "/video" 
     request
-    (let [id (get-in request [:params :id]) comment (get-in request [:params :comment]) time (get-in request [:params :time])]
+    (let [id (get-in request [:body :id]) comment (get-in request [:body :comment]) time (get-in request [:body :time])]
       (do
         (create-table (clojure.string/lower-case id))
-        (create-comment id comment time)
+        (create-comment id comment (str time))
        {:status 200
         :body {:id id
                :comment comment}}))))
@@ -63,7 +63,8 @@
   (-> (handler/site app-routes)
     (middleware/wrap-json-body {:keywords? true})
     middleware/wrap-json-response
-    (wrap-cors routes #".*")))
+    (wrap-cors routes #".*")
+    (wrap-cors routes identity)))
   
 (defn -main []
   (ring/run-jetty #'app-routes {:port 8080 :join? false}))
