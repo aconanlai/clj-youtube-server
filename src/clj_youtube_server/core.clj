@@ -8,7 +8,7 @@
             [compojure.route :as route]))
 
 (def spec (or (System/getenv "DATABASE_URL")
-              "postgresql://localhost:5432/youtuber"))
+              "postgresql://localhost:5432/youtuber?user=postgres&password=postgres"))
 
 (defn table-exists?
   [name]
@@ -16,14 +16,21 @@
                  ["select count(*) from information_schema.tables where table_name =?" name])
       first :count pos?))
 
+;; TODO: error handlding
+;; TODO: handle non-alpha first character in id
 (defn create-table
   [name]
   (when-not (table-exists? name)
-        (sql/db-do-commands spec
-         (sql/create-table-ddl name [[:comment "varchar(120)"] [:time :int]]))))
+        (try
+         (sql/db-do-commands spec
+          (sql/create-table-ddl name [[:comment "varchar(120)"] [:time :int]]))
+         (catch Exception e (println (.getNextException e))))))
+  
 
 (defn create-comment [id comment time]
-  (sql/insert! spec id [:comment :time] [comment (read-string time)]))
+  (try
+   (sql/insert! spec id [:comment :time] [comment (read-string time)])
+   (catch Exception e (println (.getNextException e)))))
 
 (defn get-comments [id]
   (if (table-exists? id)
