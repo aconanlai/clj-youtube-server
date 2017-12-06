@@ -8,7 +8,12 @@
             [compojure.route :as route]))
 
 (def spec (or (System/getenv "DATABASE_URL")
-              "postgresql://localhost:5432/youtuber?user=postgres&password=postgres"))
+              "postgresql://localhost:5432/youtuber"))
+
+(defn generate-table-name
+  "generates table name from youtube video id, stripping non-alphanumeric characters and ensuring table name starts with 'video'"
+  [id]
+  (str "video_" (apply str (re-seq #"[a-zA-Z0-9]" id))))
 
 (defn table-exists?
   [name]
@@ -16,7 +21,7 @@
                  ["select count(*) from information_schema.tables where table_name =?" name])
       first :count pos?))
 
-;; TODO: error handlding
+;; TODO: error handling
 ;; TODO: handle non-alpha first character in id
 (defn create-table
   [name]
@@ -34,7 +39,7 @@
 
 (defn get-comments [id]
   (if (table-exists? id)
-   (into [] (sql/query spec [(str "select distinct time, comment from " id)]))
+   (into [] (sql/query spec [(str "select distinct time, comment from " id " order by time")]))
    []))
 
 ;; defroutes macro defines a function that chains individual route
@@ -47,15 +52,18 @@
 
   ; serve a specific video id
   (GET "/video/:id" [id]
-    {:status 200
-     :body {:id id
-            :comments (get-comments (clojure.string/lower-case id))}})
+    (let [id (generate-table-name (clojure.string/lower-case id))]
+     {:status 200
+      :body {:id id
+             :comments (get-comments (clojure.string/lower-case id))}}))
 
   (POST "/video" 
     request
-    (let [id (get-in request [:body :id]) comment (get-in request [:body :comment]) time (get-in request [:body :time])]
+    (let [id (generate-table-name (clojure.string/lower-case (get-in request [:body :id])))
+          comment (get-in request [:body :comment])
+          time (get-in request [:body :time])]
       (do
-        (create-table (clojure.string/lower-case id))
+        (create-table id)
         (create-comment id comment (str time))
        {:status 200
         :body {:id id
